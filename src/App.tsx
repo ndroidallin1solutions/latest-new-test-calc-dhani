@@ -24,11 +24,37 @@ interface Payment {
 
 function formatIndianNumber(num: number): string {
   if (isNaN(num)) return '0';
-  const value = Math.round(num);
-  return new Intl.NumberFormat('en-IN', {
-    maximumFractionDigits: 0,
-    useGrouping: true
-  }).format(value);
+  const value = Math.round(num).toString();
+  let lastThree = value.substring(value.length - 3);
+  let otherNumbers = value.substring(0, value.length - 3);
+  if (otherNumbers !== '') {
+    lastThree = ',' + lastThree;
+  }
+  return otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + lastThree;
+}
+
+function numberToWords(num: number): string {
+  const single = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const double = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const formatTens = (num: number): string => {
+    if (num < 10) return single[num];
+    if (num < 20) return double[num - 10];
+    return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + single[num % 10] : '');
+  };
+  
+  if (num === 0) return 'Zero';
+  const crore = Math.floor(num / 10000000);
+  const lakh = Math.floor((num % 10000000) / 100000);
+  const thousand = Math.floor((num % 100000) / 1000);
+  const remaining = num % 1000;
+  
+  let str = '';
+  if (crore > 0) str += formatTens(crore) + ' Crore ';
+  if (lakh > 0) str += formatTens(lakh) + ' Lakh ';
+  if (thousand > 0) str += formatTens(thousand) + ' Thousand ';
+  if (remaining > 0) str += formatTens(remaining);
+  return str.trim() + ' Rupees';
 }
 
 function formatDate(date: string): string {
@@ -43,12 +69,12 @@ function formatDate(date: string): string {
 function App() {
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [loanDetails, setLoanDetails] = useState<LoanDetails>({
-    loanAmount: 500000,
+    loanAmount: 100000,
     annualInterestRate: 4,
-    loanPeriodYears: 3,
-    startDate: '2025-02-06',
-    name: 'Murali G K',
-    processingFees: 1250
+    loanPeriodYears: 1,
+    startDate: new Date().toISOString().split('T')[0],
+    name: 'KoS',
+    processingFees: 1380
   });
 
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -83,14 +109,44 @@ function App() {
       const contentDiv = content.querySelector('.bg-white.p-8');
       if (!contentDiv) return;
 
-      html2canvas(contentDiv, {
+      const tempDiv = document.createElement('div');
+      tempDiv.style.width = '1150px';
+      tempDiv.style.padding = '30px';
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.boxSizing = 'border-box';
+      tempDiv.innerHTML = contentDiv.innerHTML;
+      document.body.appendChild(tempDiv);
+
+      html2canvas(tempDiv, {
         scale: 2,
         useCORS: true,
+        width: 1150,
+        height: 1650,
+        windowWidth: 1150,
+        windowHeight: 1650,
+        backgroundColor: 'white',
       }).then(canvas => {
+        const scaledCanvas = document.createElement('canvas');
+        scaledCanvas.width = 2400;
+        scaledCanvas.height = 3262;
+        const ctx = scaledCanvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = 'white';
+          ctx.fillRect(0, 0, 2400, 3262);
+          const scaledWidth = 2340;
+          const scaledHeight = 3202;
+          const x = (2400 - scaledWidth) / 2;
+          const y = (3262 - scaledHeight) / 2;
+          ctx.drawImage(canvas, x, y, scaledWidth, scaledHeight);
+        }
+
         const link = document.createElement('a');
         link.download = `${loanDetails.name}_certificate.png`;
-        link.href = canvas.toDataURL('image/png');
+        link.href = scaledCanvas.toDataURL('image/png');
         link.click();
+
+        document.body.removeChild(tempDiv);
       });
     }
   };
@@ -166,25 +222,33 @@ function App() {
           {currentPage === 1 ? (
             <div>
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
-                <img src="/src/Images/logo.png" alt="Logo" className="w-full h-24 object-contain" />
+                <img src="https://raw.githubusercontent.com/dljs2001/Images/main/logo.png" alt="Logo" className="w-full h-24 object-contain" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <div className="bg-[#8B0000] rounded-lg p-6 text-white">
-                  <h2 className="text-2xl font-bold mb-4">LOAN VALUES</h2>
+                  <h2 className="text-2xl font-bold mb-4">Loan Values</h2>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <label htmlFor="loanAmount" className="text-xl font-bold">Loan Amount</label>
-                      <div className="flex items-center">
-                        <span className="mr-2 text-xl">₹</span>
-                        <input
-                          type="number"
-                          id="loanAmount"
-                          name="loanAmount"
-                          value={loanDetails.loanAmount}
-                          onChange={handleInputChange}
-                          className="w-32 bg-transparent text-white text-xl font-bold focus:outline-none text-right"
-                        />
+                      <div className="flex flex-col">
+                        <div className="text-xl font-extrabold mb-1 text-white text-left">
+                          ( {numberToWords(loanDetails.loanAmount)} )
+                        </div>
+                        <div className="flex items-center justify-end">
+                          <span className="text-xl">₹</span>
+                          <input
+                            type="text"
+                            id="loanAmount"
+                            name="loanAmount"
+                            value={formatIndianNumber(loanDetails.loanAmount)}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value.replace(/,/g, '')) || 0;
+                              handleInputChange({ target: { name: 'loanAmount', value } });
+                            }}
+                            className="w-32 bg-transparent text-white text-xl font-bold focus:outline-none text-right ml-1"
+                          />
+                        </div>
                       </div>
                     </div>
                     <div className="flex justify-between items-center">
@@ -238,7 +302,7 @@ function App() {
                 </div>
 
                 <div className="bg-[#8B0000] rounded-lg p-6 text-white">
-                  <h2 className="text-2xl font-bold mb-4">LOAN VALUES</h2>
+                  <h2 className="text-2xl font-bold mb-4">Loan Summary</h2>
                   <div className="space-y-4">
                     <div className="flex justify-between text-xl font-bold">
                       <span>Monthly Payment</span>
@@ -331,7 +395,7 @@ function App() {
               <div className="max-w-4xl mx-auto">
                 {/* Logo */}
                 <div className="mb-8">
-                  <img src="/src/Images/logo.png" alt="Logo" className="w-full h-24 object-contain" />
+                  <img src="https://raw.githubusercontent.com/dljs2001/Images/main/logo.png" alt="Logo" className="w-full h-24 object-contain" />
                 </div>
 
                 {/* Date and Reference Number */}
@@ -382,7 +446,16 @@ function App() {
                   </div>
                   <div className="flex">
                     <span className="w-48">Processing Fees</span>
-                    <span className="font-bold">₹ {formatIndianNumber(loanDetails.processingFees)}</span>
+                    <div className="flex items-center">
+                      <span className="font-bold mr-2">₹</span>
+                      <input
+                        type="number"
+                        name="processingFees"
+                        value={loanDetails.processingFees}
+                        onChange={handleInputChange}
+                        className="w-32 font-bold focus:outline-none text-[#404040]"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -402,13 +475,16 @@ function App() {
                 {/* Signature Image */}
                 <div className="mt-12 mb-4">
                   <img 
-                    src="/src/Images/sign.png" 
+                    src="https://raw.githubusercontent.com/dljs2001/Images/refs/heads/main/sign.png"
                     alt="Signature" 
                     className="w-full h-auto mx-auto mb-8" 
                   />
-                  <p className="text-[#404040] text-sm italic underline text-center font-bold">
-                    This is a system generated letter and hence does not require any signature.
-                  </p>
+                  <div className="text-[#404040] text-sm italic underline text-left font-bold space-y-1">
+                    <p>This is a system</p>
+                    <p>generated letter and</p>
+                    <p>hence does not require any</p>
+                    <p>signature.</p>
+                  </div>
                 </div>
 
                 {/* Corporate Office */}
